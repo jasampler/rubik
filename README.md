@@ -22,14 +22,15 @@ Console program to play with the Rubik's cube and save any position.
         AAAAAAAAAAAAAAAAAAAA
 
 Shows a 3D representation of the Rubik's Cube in ASCII and
-allows to turn its faces by entering numbers from 1 to 6.
+allows to turn its faces by default entering the digits 1-6.
 
-The 20 uppercase letters (A-X) printed with the ASCII can be
-passed as argument of the program to recover that position.
-The -s or --silent option skips the ASCII representation.
+  -c,--chars UFLRBD     6 characters to represent the colors
+  -i,--initial POSITION the 20 uppercase letters (A-X) printed after
+                        each move to recover again the same position
+  -s,--silent           prints only the POSITION and not the ASCII
 
-Entering the number shown in the center of a face turns that
-face clockwise one-quarter turn, and the notation -N or N'
+Entering the character shown in the center of a face turns
+that face clockwise one-quarter turn, and entering -N or N'
 turns the face N anticlockwise one-quarter turn. Applying
 the minus or the apostrophe again to the same number will
 have no effect. Any other unrecognized symbol is ignored.
