@@ -17,6 +17,7 @@
 
 #include <stdio.h> /* NULL, EOF, stderr, printf, fprintf, getchar */
 #include <string.h> /* strchr, strcmp */
+#include <ctype.h> /* isgraph */
 
 #define NFACES 6
 #define EMPTY_COLOR (-1)
@@ -439,7 +440,7 @@ char LINES_CUBE_TPL[NROWS_CUBE_TPL][NCOLS_CUBE_TPL] = {
 	"      y     z     {   (w                   L     K     J    (N"
 };
 
-/** The order of filling minicubes is z=0:stuvxyz{, z=1:moMO), z=2(ABCDFGHI) */
+/** The order of filling minicubes is z=0:stuvxyz{, z=1:moMO, z=2:ABCDFGHI */
 #define KEYS_CUBE_TPL "SjsktaluTvbxJUyKzLc{VmdoMXOfAYpBqCgrDZFhGP[HQIRi*ENWenw"
 
 /** Uses the minicube orientations to sort the colors, and then prints them.
@@ -543,7 +544,7 @@ void print_cube_point(char currentorients[NMINICUBES]) {
 }
 
 /** Returns true if the argument has 20 uppercase letters in the range A-X. */
-int is_cube_point(char *arg) {
+int valid_cube_point_chars(char *arg) {
 	int i;
 	char c;
 	for (i = 0; (c = arg[i]) != '\0'; i++) {
@@ -557,25 +558,45 @@ int is_cube_point(char *arg) {
 	return 1;
 }
 
+#define MINUS '-'
+#define APOS '\''
+
+/** Returns true if the argument has 6 printable ASCII characters not - or '. */
+char valid_color_chars(char *arg) {
+	int i;
+	char c;
+	for (i = 0; (c = arg[i]) != '\0'; i++) {
+		if (! isgraph(c) || c == APOS || c == MINUS
+				|| strchr(arg, c) - arg < i) {
+			return 0;
+		}
+	}
+	if (i != 6) {
+		return 0;
+	}
+	return 1;
+}
+
 void println(char *str) {
 	fprintf(stderr, "%s\n", str);
 }
 
 void print_help() {
-	println("Usage: rubik [-s|--silent] [INITIALPOSITION]");
-	println("Shows a 3D representation of the Rubik's Cube in ASCII and");
-	println("allows to turn its faces by entering numbers from 1 to 6.");
-	println("");
-	println("The 20 uppercase letters (A-X) printed with the ASCII can be");
-	println("passed as argument of the program to recover that position.");
-	println("The -s or --silent option skips the ASCII representation.");
-	println("");
-	println("Entering the number shown in the center of a face turns that");
-	println("face clockwise one-quarter turn, and the notation -N or N'");
-	println("turns the face N anticlockwise one-quarter turn. Applying");
-	println("the minus or the apostrophe again to the same number will");
-	println("have no effect. Any other unrecognized symbol is ignored.");
-	println("");
+println("Use: rubik [-s|--silent] [-c|--chars UFLRBD] [-i|--initial POSITION]");
+println("Shows a 3D representation of the Rubik's Cube in ASCII and");
+println("allows to turn its faces by default entering the digits 1-6.");
+println("");
+println("  -c,--chars UFLRBD     6 characters to represent the colors");
+println("  -i,--initial POSITION the 20 uppercase letters (A-X) printed after");
+println("                        each move to recover again the same position");
+println("  -s,--silent           prints only the POSITION and not the ASCII");
+println("");
+println("Entering the character shown in the center of a face turns");
+println("that face clockwise one-quarter turn, and entering -N or N'");
+println("turns the face N anticlockwise one-quarter turn. Applying");
+println("the minus or the apostrophe again to the same number will");
+println("have no effect. Any other unrecognized symbol is ignored.");
+println("");
 }
 
 struct rubik_move_st {
@@ -618,7 +639,7 @@ char process_input_char(char c) {
 		action |= SAVE_FOUND_FACE;
 		ST.lastfacechr = c;
 	} else {
-		if (c == '\'') {
+		if (c == APOS) {
 			if (ST.lastchr == ST.lastfacechr) {
 				ST.pendingsign = -1;
 			}
@@ -653,7 +674,7 @@ char process_input_char(char c) {
 		}
 		if (action & SAVE_FOUND_FACE) {
 			ST.pendingface = f;
-			if (ST.lastchr == '-') {
+			if (ST.lastchr == MINUS) {
 				ST.pendingsign = -1;
 			}
 		}
@@ -675,8 +696,26 @@ int main(int argc, char *argv[]) {
 	for (i = 1; i < argc; i++) {
 		if (! strcmp(argv[i], "-s") || ! strcmp(argv[i], "--silent")) {
 			silent = 1;
-		} else if (is_cube_point(argv[i])) {
-			initialpoint = argv[i];
+		} else if (i + 1 < argc && (! strcmp(argv[i], "-c")
+					|| ! strcmp(argv[i], "--chars"))) {
+			COLOR_CHARS = argv[++i];
+			if (! valid_color_chars(COLOR_CHARS)) {
+				fprintf(stderr,
+					"Invalid color characters: %s\n\n",
+					COLOR_CHARS);
+				print_help();
+				return -3;
+			}
+		} else if (i + 1 < argc && (! strcmp(argv[i], "-i")
+					|| ! strcmp(argv[i], "--initial"))) {
+			initialpoint = argv[++i];
+			if (! valid_cube_point_chars(initialpoint)) {
+				fprintf(stderr,
+					"Invalid initial position: %s\n\n",
+					initialpoint);
+				print_help();
+				return -2;
+			}
 		} else {
 			print_help();
 			return -1;
@@ -686,7 +725,8 @@ int main(int argc, char *argv[]) {
 	init_minicube_orientations();
 	init_minicube_transformations();
 	if (! init_cube_point(currentorients, minicubesbypos, initialpoint)) {
-		fprintf(stderr, "Invalid position: %s\n\n", initialpoint);
+		fprintf(stderr, "Invalid initial position: %s\n\n",
+			initialpoint);
 		print_help();
 		return -2;
 	}
