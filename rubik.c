@@ -558,15 +558,15 @@ int valid_cube_point_chars(char *arg) {
 	return 1;
 }
 
-#define MINUS '-'
 #define APOS '\''
+#define QUOT '"'
 
-/** Returns true if the argument has 6 printable ASCII characters not - or '. */
+/** Returns true if argument has 6 non-repeated printable ASCII chars not '". */
 char valid_color_chars(char *arg) {
 	int i;
 	char c;
 	for (i = 0; (c = arg[i]) != '\0'; i++) {
-		if (! isgraph(c) || c == APOS || c == MINUS
+		if (! isgraph(c) || c == APOS || c == QUOT
 				|| strchr(arg, c) - arg < i) {
 			return 0;
 		}
@@ -592,10 +592,11 @@ println("                        each move to recover again the same position");
 println("  -s,--silent           prints only the POSITION and not the ASCII");
 println("");
 println("Entering the character shown in the center of a face turns");
-println("that face clockwise one-quarter turn, and entering -N or N'");
-println("turns the face N anticlockwise one-quarter turn. Applying");
-println("the minus or the apostrophe again to the same number will");
-println("have no effect. Any other unrecognized symbol is ignored.");
+println("that face clockwise one-quarter turn, entering N' turns the");
+println("face N anticlockwise one-quarter turn, and entering N\" turns");
+println("the face N one-quarter turn two times. Applying these symbols");
+println("again to the same face or use them alone will have no effect,");
+println("and any other unrecognized symbol is also ignored.");
 println("");
 }
 
@@ -640,8 +641,17 @@ char process_input_char(char c) {
 		ST.lastfacechr = c;
 	} else {
 		if (c == APOS) {
-			if (ST.lastchr == ST.lastfacechr) {
+			if (ST.lastchr && ST.lastchr == ST.lastfacechr) {
 				ST.pendingsign = -1;
+			}
+		} else if (c == QUOT) {
+			if (ST.lastchr && ST.lastchr == ST.lastfacechr) {
+				f = char_to_color(ST.lastchr);
+				if (ST.savedface != EMPTY_COLOR
+				&& ST.savedface != ST.pendingface) {
+					action |= ROTATE_SAVED_FACE;
+				}
+				action |= SAVE_PENDING_FACE | SAVE_FOUND_FACE;
 			}
 		} else if (c == '\n') {
 			if (ST.pendingface != EMPTY_COLOR) {
@@ -674,14 +684,171 @@ char process_input_char(char c) {
 		}
 		if (action & SAVE_FOUND_FACE) {
 			ST.pendingface = f;
-			if (ST.lastchr == MINUS) {
-				ST.pendingsign = -1;
-			}
 		}
 	}
 	ST.lastchr = c;
 	return hasresult;
 }
+
+/* Remove #define NDEBUG to enable the tests. */
+#define NDEBUG
+
+#ifndef NDEBUG
+
+#include <assert.h>
+#define MAX_ITEST_RESULTS 5
+
+struct rubik_input_test_st {
+	char *instr;
+	int nresults;
+	struct rubik_move_st results[MAX_ITEST_RESULTS];
+};
+
+void init_input_test(struct rubik_input_test_st *itest, char *instr) {
+	itest->instr = instr;
+	itest->nresults = 0;
+}
+
+void add_input_test_result(struct rubik_input_test_st *itest,
+				char facechar, int times) {
+	assert(itest->nresults < MAX_ITEST_RESULTS);
+	itest->results[itest->nresults].face = char_to_color(facechar);
+	itest->results[itest->nresults].times = times;
+	itest->nresults++;
+}
+
+void check_input_test_results(struct rubik_input_test_st *itest) {
+	char c;
+	int i, r, n, ncalls;
+	printf("TEST: %s", itest->instr);
+	init_input_state();
+	r = 0;
+	for (i = 0; (c = itest->instr[i]) != '\0'; i++) {
+		ncalls = (c == '\n' ? 2 : 1);
+		for (n = 0; n < ncalls; n++) {
+			if (process_input_char(c)) {
+				assert(r < itest->nresults);
+				assert(ST.result.face
+						== itest->results[r].face);
+				assert(ST.result.times
+						== itest->results[r].times);
+				r++;
+			}
+		}
+	}
+	assert(r == itest->nresults);
+}
+
+void test_process_input_char() {
+	struct rubik_input_test_st itest;
+	init_input_test(&itest, "\n");
+	check_input_test_results(&itest);
+
+	init_input_test(&itest, "5\n");
+	add_input_test_result(&itest, '5', 1);
+	check_input_test_results(&itest);
+
+	init_input_test(&itest, "555\n");
+	add_input_test_result(&itest, '5', 3);
+	check_input_test_results(&itest);
+
+	init_input_test(&itest, "44455\n");
+	add_input_test_result(&itest, '4', 3);
+	add_input_test_result(&itest, '5', 2);
+	check_input_test_results(&itest);
+
+	init_input_test(&itest, "654\n");
+	add_input_test_result(&itest, '6', 1);
+	add_input_test_result(&itest, '5', 1);
+	add_input_test_result(&itest, '4', 1);
+	check_input_test_results(&itest);
+
+	init_input_test(&itest, "5'\n");
+	add_input_test_result(&itest, '5', -1);
+	check_input_test_results(&itest);
+
+	init_input_test(&itest, "'\n");
+	check_input_test_results(&itest);
+
+	init_input_test(&itest, "6'54'\n");
+	add_input_test_result(&itest, '6', -1);
+	add_input_test_result(&itest, '5', 1);
+	add_input_test_result(&itest, '4', -1);
+	check_input_test_results(&itest);
+
+	init_input_test(&itest, "65'4\n");
+	add_input_test_result(&itest, '6', 1);
+	add_input_test_result(&itest, '5', -1);
+	add_input_test_result(&itest, '4', 1);
+	check_input_test_results(&itest);
+
+	init_input_test(&itest, "5'5'5'\n");
+	add_input_test_result(&itest, '5', -3);
+	check_input_test_results(&itest);
+
+	init_input_test(&itest, "5'5\n");
+	add_input_test_result(&itest, '5', 0);
+	check_input_test_results(&itest);
+
+	init_input_test(&itest, "5'5'555\n");
+	add_input_test_result(&itest, '5', 1);
+	check_input_test_results(&itest);
+
+	init_input_test(&itest, "555'5'5'\n");
+	add_input_test_result(&itest, '5', -1);
+	check_input_test_results(&itest);
+
+	init_input_test(&itest, "445'5'5'55554'4'4'555'5'5'5'\n");
+	add_input_test_result(&itest, '4', 2);
+	add_input_test_result(&itest, '5', 1);
+	add_input_test_result(&itest, '4', -3);
+	add_input_test_result(&itest, '5', -2);
+	check_input_test_results(&itest);
+
+	init_input_test(&itest, "5\"\n");
+	add_input_test_result(&itest, '5', 2);
+	check_input_test_results(&itest);
+
+	init_input_test(&itest, "\"\n");
+	check_input_test_results(&itest);
+
+	init_input_test(&itest, "54\"\n");
+	add_input_test_result(&itest, '5', 1);
+	add_input_test_result(&itest, '4', 2);
+	check_input_test_results(&itest);
+
+	init_input_test(&itest, "44\"\n");
+	add_input_test_result(&itest, '4', 3);
+	check_input_test_results(&itest);
+
+	init_input_test(&itest, "654\"\n");
+	add_input_test_result(&itest, '6', 1);
+	add_input_test_result(&itest, '5', 1);
+	add_input_test_result(&itest, '4', 2);
+	check_input_test_results(&itest);
+
+	init_input_test(&itest, "554\"\n");
+	add_input_test_result(&itest, '5', 2);
+	add_input_test_result(&itest, '4', 2);
+	check_input_test_results(&itest);
+
+	init_input_test(&itest, "544\"\n");
+	add_input_test_result(&itest, '5', 1);
+	add_input_test_result(&itest, '4', 3);
+	check_input_test_results(&itest);
+
+	init_input_test(&itest, "444\"\n");
+	add_input_test_result(&itest, '4', 4);
+	check_input_test_results(&itest);
+
+	init_input_test(&itest, "6'6\"5\"54\"4'\n");
+	add_input_test_result(&itest, '6', 1);
+	add_input_test_result(&itest, '5', 3);
+	add_input_test_result(&itest, '4', 1);
+	check_input_test_results(&itest);
+}
+
+#endif
 
 /*
 #Repeat the sequence of moves 12 to find when the initial position is recovered:
@@ -689,10 +856,12 @@ gcc -ansi -Wall -pedantic -o rubik rubik.c
 yes 12 | head -200 | ./rubik -s | nl | grep AAAAAAAAAAAAAAAAAAAA
 */
 int main(int argc, char *argv[]) {
-	int i, c;
+	int i, c, ncalls, n;
 	char silent = 0, *initialpoint = "AAAAAAAAAAAAAAAAAAAA";
 	char currentorients[NMINICUBES], minicubesbypos[NMINICUBES];
-	char stop;
+#ifndef NDEBUG
+	test_process_input_char();
+#endif
 	for (i = 1; i < argc; i++) {
 		if (! strcmp(argv[i], "-s") || ! strcmp(argv[i], "--silent")) {
 			silent = 1;
@@ -733,23 +902,21 @@ int main(int argc, char *argv[]) {
 	init_input_state();
 	c = '\n';
 	while (c != EOF) {
-		stop = 1;
-		do {
+		ncalls = (c == '\n' ? 2 : 1);
+		for (n = 0; n < ncalls; n++) {
 			if (process_input_char(c)) {
 				rotate_cube_face(ST.result.face,
 						reduce_times(ST.result.times),
 						currentorients, minicubesbypos);
 			}
-			if (c == '\n') {
-				if (--stop == -1) {
-					if (! silent) {
-						print_cube_3d(currentorients,
-								minicubesbypos);
-					}
-					print_cube_point(currentorients);
+			if (n == 1) {
+				if (! silent) {
+					print_cube_3d(currentorients,
+							minicubesbypos);
 				}
+				print_cube_point(currentorients);
 			}
-		} while (! stop);
+		}
 		c = getchar();
 	}
 	return 1;

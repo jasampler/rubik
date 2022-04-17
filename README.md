@@ -21,6 +21,8 @@ Console program to play with the Rubik's cube and save any position.
 
         AAAAAAAAAAAAAAAAAAAA
 
+    Use: rubik [-s|--silent] [-c|--chars UFLRBD] [-i|--initial POSITION]
+
 Shows a 3D representation of the Rubik's Cube in ASCII and
 allows to turn its faces by default entering the digits 1-6.
 
@@ -30,7 +32,9 @@ allows to turn its faces by default entering the digits 1-6.
     -s,--silent           prints only the POSITION and not the ASCII
 
 Entering the character shown in the center of a face turns
-that face clockwise one-quarter turn, and entering -N or N'
-turns the face N anticlockwise one-quarter turn. Applying
-the minus or the apostrophe again to the same number will
-have no effect. Any other unrecognized symbol is ignored.
+that face clockwise one-quarter turn, entering N' turns the
+face N anticlockwise one-quarter turn, and entering N" turns
+the face N one-quarter turn two times. Applying these symbols
+again to the same face or use them alone will have no effect,
+and any other unrecognized symbol is also ignored.
+
